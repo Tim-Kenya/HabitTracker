@@ -1,98 +1,73 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { View, FlatList, Animated } from 'react-native';
+import SlideItem from '../components/SlideItem';
+import DotIndicator from '../components/DotIndicator';
+import NavButtons from '../components/NavButtons';
+import { Slide } from '../types';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+const slides: Slide[] = [
+  { id: '1', image: require('../../assets/images/slide1.png'), title: 'Welcome', description: 'Discover amazing things with our app' },
+  { id: '2', image: require('../../assets/images/slide2.png'), title: 'Stay Organised', description: 'Keep track of everything in one place' },
+  { id: '3', image: require('../../assets/images/slide3.png'), title: 'Get Started', description: 'Join thousands of users today' },
+];
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function OnboardingScreen() {
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const flatListRef = useRef<FlatList<Slide>>(null);
+  const dotAnimations = useRef(slides.map(() => new Animated.Value(8))).current;
+
+  const viewabilityConfig = { viewAreaCoveragePercentThreshold: 50 };
+
+  const onViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      setActiveIndex(viewableItems[0].index);
+    }
+  }, []);
+
+  useEffect(() => {
+    slides.forEach((_, index) => {
+      Animated.spring(dotAnimations[index], {
+        toValue: index === activeIndex ? 20 : 8,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [activeIndex]);
+
+  const goToNext = () => {
+    const nextIndex = activeIndex + 1;
+    flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
+    setActiveIndex(nextIndex);
+  };
+
+  const skip = () => {
+    const lastIndex = slides.length - 1;
+    flatListRef.current?.scrollToIndex({ index: lastIndex, animated: true });
+    setActiveIndex(lastIndex);
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <View style={{ flex: 1 }}>
+      <FlatList
+        ref={flatListRef}
+        data={slides}
+        keyExtractor={(item) => item.id}
+        horizontal
+        pagingEnabled
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        renderItem={({ item }) => <SlideItem item={item} />}
+      />
+      <DotIndicator
+        slides={slides}
+        activeIndex={activeIndex}
+        dotAnimations={dotAnimations}
+      />
+      <NavButtons
+        isLastSlide={activeIndex === slides.length - 1}
+        onSkip={skip}
+        onNext={goToNext}
+        onGetStarted={() => console.log('Navigate to Home')}
+      />
+    </View>
   );
 }
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
-});
